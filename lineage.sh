@@ -3,7 +3,8 @@ set -eo pipefail
 
 # ==============================================================================
 #  Build Script for Tecno Pova 5 Pro 5G (LH8n)
-#  Features: Terminal HUD Notifier (No Emojis), Error Attacher & PixelDrain Uploader
+#  Features: Terminal HUD Notifier (No Emojis), Error Attacher & Dual Cloud Uploader
+#  Cloud Providers: PixelDrain & GoFile
 # ==============================================================================
 
 # --- Load Private Telegram Secrets from Secret Gist if not in env ---
@@ -63,6 +64,10 @@ upload_to_gofile() {
         return 1
     fi
 
+    local file_name
+    file_name=$(basename "${file_path}")
+    echo "=== Uploading ${file_name} to GoFile ===" >&2
+
     local server
     server=$(curl -ks "https://api.gofile.io/servers" | jq -r '.data.servers[0].name' 2>/dev/null || echo "")
     [[ -z "${server}" || "${server}" == "null" ]] && server="store1"
@@ -79,8 +84,8 @@ upload_to_gofile() {
     fi
 }
 
-# --- PixelDrain Upload Helper (with GoFile Fallback) ---
-upload_file() {
+# --- PixelDrain Upload Helper ---
+upload_to_pixeldrain() {
     local file_path="$1"
     if [[ ! -f "${file_path}" ]]; then
         echo ""
@@ -104,8 +109,7 @@ upload_file() {
     if [[ -n "${id}" && "${id}" != "null" ]]; then
         echo "https://pixeldrain.com/u/${id}"
     else
-        echo "=== PixelDrain fallback to GoFile for ${file_name} ===" >&2
-        upload_to_gofile "${file_path}"
+        echo ""
     fi
 }
 
@@ -205,7 +209,7 @@ lunch lineage_LH8n-userdebug
 echo "=== [5/6] Compiling ROM ==="
 m bacon 2>&1 | tee "${LOG_FILE}"
 
-echo "=== [6/6] Packaging & Uploading Artifacts to PixelDrain ==="
+echo "=== [6/6] Packaging & Dual Cloud Upload (PixelDrain + GoFile) ==="
 END_TIME=$(date +%s)
 DURATION=$(( (END_TIME - START_TIME) / 60 ))
 DURATION_SECS=$(( (END_TIME - START_TIME) % 60 ))
@@ -216,45 +220,54 @@ ROM_ZIP=$(find "${OUT_DIR}" -maxdepth 1 -name "*.zip" ! -name "*ota*" | head -n 
 ZIP_NAME="None"
 ZIP_SIZE="0"
 ZIP_MD5="None"
-ROM_URL=""
+PD_ROM_URL=""
+GF_ROM_URL=""
 
 if [[ -f "${ROM_ZIP}" ]]; then
     ZIP_NAME=$(basename "${ROM_ZIP}")
     ZIP_SIZE=$(du -h "${ROM_ZIP}" | awk '{print $1}')
     ZIP_MD5=$(md5sum "${ROM_ZIP}" | awk '{print $1}')
-    ROM_URL=$(upload_file "${ROM_ZIP}")
+    
+    # Upload ROM to both providers
+    PD_ROM_URL=$(upload_to_pixeldrain "${ROM_ZIP}")
+    GF_ROM_URL=$(upload_to_gofile "${ROM_ZIP}")
 fi
 
-# 1. Upload Individual Partition Images (Boot, Vendor_boot, Dtbo, Recovery)
+# Partition Images Upload
 BOOT_IMG="${OUT_DIR}/boot.img"
 VBOOT_IMG="${OUT_DIR}/vendor_boot.img"
 DTBO_IMG="${OUT_DIR}/dtbo.img"
 RECOVERY_IMG="${OUT_DIR}/recovery.img"
 
-BOOT_URL=""
-VBOOT_URL=""
-DTBO_URL=""
-RECOVERY_URL=""
+PD_BOOT_URL=""
+PD_VBOOT_URL=""
+PD_DTBO_URL=""
+PD_RECOVERY_URL=""
 
-[[ -f "${BOOT_IMG}" ]] && BOOT_URL=$(upload_file "${BOOT_IMG}")
-[[ -f "${VBOOT_IMG}" ]] && VBOOT_URL=$(upload_file "${VBOOT_IMG}")
-[[ -f "${DTBO_IMG}" ]] && DTBO_URL=$(upload_file "${DTBO_IMG}")
-[[ -f "${RECOVERY_IMG}" ]] && RECOVERY_URL=$(upload_file "${RECOVERY_IMG}")
+[[ -f "${BOOT_IMG}" ]] && PD_BOOT_URL=$(upload_to_pixeldrain "${BOOT_IMG}")
+[[ -f "${VBOOT_IMG}" ]] && PD_VBOOT_URL=$(upload_to_pixeldrain "${VBOOT_IMG}")
+[[ -f "${DTBO_IMG}" ]] && PD_DTBO_URL=$(upload_to_pixeldrain "${DTBO_IMG}")
+[[ -f "${RECOVERY_IMG}" ]] && PD_RECOVERY_URL=$(upload_to_pixeldrain "${RECOVERY_IMG}")
 
-# Construct Clean JSON Inline Buttons
+# Construct Dual Provider Buttons
 BUTTON_ROWS=()
 
-# Row 1: Main ROM Download Button
-if [[ -n "${ROM_URL}" ]]; then
-    BUTTON_ROWS+=("[{\"text\":\"Download ROM\",\"url\":\"${ROM_URL}\"}]")
+# Row 1: Dual ROM Download Mirrors
+ROM_ROW=()
+[[ -n "${PD_ROM_URL}" ]] && ROM_ROW+=("{\"text\":\"PixelDrain Mirror\",\"url\":\"${PD_ROM_URL}\"}")
+[[ -n "${GF_ROM_URL}" ]] && ROM_ROW+=("{\"text\":\"GoFile Mirror\",\"url\":\"${GF_ROM_URL}\"}")
+
+if [[ ${#ROM_ROW[@]} -gt 0 ]]; then
+    ROW1=$(IFS=,; echo "${ROM_ROW[*]}")
+    BUTTON_ROWS+=("[${ROW1}]")
 fi
 
 # Row 2: Partition Image Buttons
 IMG_BUTTONS=()
-[[ -n "${BOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Boot.img\",\"url\":\"${BOOT_URL}\"}")
-[[ -n "${VBOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Vendor_boot.img\",\"url\":\"${VBOOT_URL}\"}")
-[[ -n "${DTBO_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Dtbo.img\",\"url\":\"${DTBO_URL}\"}")
-[[ -n "${RECOVERY_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Recovery.img\",\"url\":\"${RECOVERY_URL}\"}")
+[[ -n "${PD_BOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Boot.img\",\"url\":\"${PD_BOOT_URL}\"}")
+[[ -n "${PD_VBOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Vendor_boot.img\",\"url\":\"${PD_VBOOT_URL}\"}")
+[[ -n "${PD_DTBO_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Dtbo.img\",\"url\":\"${PD_DTBO_URL}\"}")
+[[ -n "${PD_RECOVERY_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Recovery.img\",\"url\":\"${PD_RECOVERY_URL}\"}")
 
 if [[ ${#IMG_BUTTONS[@]} -gt 0 ]]; then
     ROW2=$(IFS=,; echo "${IMG_BUTTONS[*]}")
