@@ -2,8 +2,8 @@
 set -eo pipefail
 
 # ==============================================================================
-#  LineageOS Build Script for Tecno Pova 5 Pro 5G (LH8n)
-#  Features: Telegram Status Pinger & Automated GoFile Uploader
+#  Build Script for Tecno Pova 5 Pro 5G (LH8n)
+#  Features: Terminal HUD Telegram Notifier & GoFile Auto-Uploader
 # ==============================================================================
 
 # --- Load Private Telegram Secrets from Secret Gist if not in env ---
@@ -13,7 +13,7 @@ fi
 
 START_TIME=$(date +%s)
 DEVICE="LH8n"
-ROM="LineageOS 23.2"
+BRANCH="lineage-23.2-test"
 
 # --- Telegram Notification Helper ---
 tg_send_message() {
@@ -49,10 +49,9 @@ upload_to_gofile() {
     download_url=$(echo "${response}" | jq -r '.data.downloadPage' 2>/dev/null || echo "")
 
     if [[ -n "${download_url}" && "${download_url}" != "null" ]]; then
-        echo "GoFile Download Link: ${download_url}"
         echo "${download_url}"
     else
-        echo "GoFile upload response: ${response}"
+        echo "ERROR"
     fi
 }
 
@@ -63,12 +62,20 @@ on_failure() {
     local end_time
     end_time=$(date +%s)
     local duration=$(( (end_time - START_TIME) / 60 ))
+    local duration_secs=$(( (end_time - START_TIME) % 60 ))
 
-    local fail_msg="❌ <b>Build Failed!</b>
-📱 <b>Device:</b> Tecno Pova 5 Pro (<code>${DEVICE}</code>)
-🧬 <b>Target:</b> <code>${ROM}</code>
-⚠️ <b>Failed Line:</b> <code>${failed_line}</code> (Exit code: <code>${exit_code}</code>)
-⏱️ <b>Duration:</b> ${duration} minutes"
+    local fail_msg="<pre>
+┌──[ ❌ CI BUILD // FAILED ]
+│
+├─► TARGET   : Tecno Pova 5 Pro (${DEVICE})
+├─► BRANCH   : ${BRANCH}
+├─► FAILED AT: Line ${failed_line}
+├─► EXIT CODE: ${exit_code}
+├─► TIME RUN : ${duration}m ${duration_secs}s
+│
+└──[ ⚠️ STATUS : COMPILATION ABORTED ]
+</pre>
+👤 <b>Checked by:</b> @Swaggyxren"
 
     tg_send_message "${fail_msg}"
     echo "=== Build failed on line ${failed_line} with exit code ${exit_code} ==="
@@ -78,11 +85,18 @@ on_failure() {
 trap 'on_failure ${LINENO}' ERR
 
 # --- 1. Send Build Started Notification ---
-start_msg="🚀 <b>Build Started!</b>
-📱 <b>Device:</b> Tecno Pova 5 Pro (<code>${DEVICE}</code>)
-🧬 <b>Target:</b> <code>${ROM}</code>
-🌿 <b>Branch:</b> <code>lineage-23.2-test</code>
-📅 <b>Started:</b> $(date "+%Y-%m-%d %H:%M:%S UTC")"
+start_msg="<pre>
+┌──[ 🚀 CI BUILD // TRIGGERED ]
+│
+├─► TARGET   : Tecno Pova 5 Pro (${DEVICE})
+├─► CHIPSET  : MediaTek (MT6833)
+├─► BRANCH   : ${BRANCH}
+├─► TYPE     : userdebug
+├─► RUNNER   : Crave FOSS Cloud Engine
+│
+└──[ ⏳ STATUS : COMPILATION IN PROGRESS... ]
+</pre>
+👤 <b>Maintainer:</b> @Swaggyxren"
 
 tg_send_message "${start_msg}"
 
@@ -97,7 +111,7 @@ rm -rf device/tecno/LH8n \
        vendor/lineage-priv/keys
 
 echo "=== [2/6] Cloning Device, Vendor, Kernel & Dependencies ==="
-git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b lineage-23.2-test device/tecno/LH8n
+git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n
 git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b vendor-test vendor/tecno/LH8n
 git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
 git clone https://github.com/techyminati/android_vendor_mediatek_ims --depth 1 vendor/mediatek/ims
@@ -113,37 +127,54 @@ echo "=== [4/6] Setting Up Build Environment ==="
 source build/envsetup.sh
 lunch lineage_LH8n-userdebug
 
-echo "=== [5/6] Compiling LineageOS ==="
+echo "=== [5/6] Compiling ROM ==="
 m bacon
 
 echo "=== [6/6] Packaging & Uploading Artifacts ==="
 END_TIME=$(date +%s)
 DURATION=$(( (END_TIME - START_TIME) / 60 ))
+DURATION_SECS=$(( (END_TIME - START_TIME) % 60 ))
 
 OUT_DIR="out/target/product/${DEVICE}"
-ZIP_PATH=$(find "${OUT_DIR}" -maxdepth 1 -name "lineage-*.zip" | head -n 1)
+ZIP_PATH=$(find "${OUT_DIR}" -maxdepth 1 -name "*.zip" ! -name "*ota*" | head -n 1)
 
 if [[ -f "${ZIP_PATH}" ]]; then
     ZIP_NAME=$(basename "${ZIP_PATH}")
     ZIP_SIZE=$(du -h "${ZIP_PATH}" | awk '{print $1}')
+    ZIP_MD5=$(md5sum "${ZIP_PATH}" | awk '{print $1}')
     
+    echo "Calculating MD5: ${ZIP_MD5}"
     echo "Uploading ${ZIP_NAME} (${ZIP_SIZE}) to GoFile..."
     GOFILE_URL=$(upload_to_gofile "${ZIP_PATH}" | tail -n 1)
 
-    success_msg="✅ <b>Build Succeeded!</b>
-📱 <b>Device:</b> Tecno Pova 5 Pro (<code>${DEVICE}</code>)
-🧬 <b>Target:</b> <code>${ROM}</code>
-📦 <b>Filename:</b> <code>${ZIP_NAME}</code>
-📊 <b>Size:</b> <code>${ZIP_SIZE}</code>
-⏱️ <b>Build Time:</b> ${DURATION} minutes
-🔗 <b>Download:</b> <a href=\"${GOFILE_URL}\">GoFile Link</a>"
+    success_msg="<pre>
+┌──[ ✅ BUILD COMPLETE &amp; UPLOADED ]
+│
+├─► TARGET   : Tecno Pova 5 Pro (${DEVICE})
+├─► BRANCH   : ${BRANCH}
+├─► TYPE     : userdebug
+├─► FILE     : ${ZIP_NAME}
+├─► SIZE     : ${ZIP_SIZE}
+├─► TIME     : ${DURATION}m ${DURATION_SECS}s
+├─► MD5      : ${ZIP_MD5}
+│
+└──[ 🔗 LINK : ${GOFILE_URL} ]
+</pre>
+👤 <b>Built by:</b> @Swaggyxren | #${DEVICE}"
 
     tg_send_message "${success_msg}"
 else
-    no_zip_msg="⚠️ <b>Build Finished, but no ROM .zip was found in output folder!</b>
-📱 <b>Device:</b> <code>${DEVICE}</code>
-⏱️ <b>Time:</b> ${DURATION} minutes"
+    no_zip_msg="<pre>
+┌──[ ⚠️ BUILD FINISHED // NO ZIP DETECTED ]
+│
+├─► TARGET   : Tecno Pova 5 Pro (${DEVICE})
+├─► BRANCH   : ${BRANCH}
+├─► TIME     : ${DURATION}m ${DURATION_SECS}s
+│
+└──[ ⚠️ STATUS : CHECK CRAVE LOGS ]
+</pre>
+👤 <b>Checked by:</b> @Swaggyxren"
     tg_send_message "${no_zip_msg}"
 fi
 
-echo "=== Build & Upload Workflow Completed in ${DURATION} minutes ==="
+echo "=== Build & Upload Workflow Completed in ${DURATION}m ${DURATION_SECS}s ==="
