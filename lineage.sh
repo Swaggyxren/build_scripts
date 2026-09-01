@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ==============================================================================
 #  Build Script for Tecno Pova 5 Pro 5G (LH8n)
-#  Features: Terminal HUD Telegram Notifier & GoFile Auto-Uploader
+#  Features: Terminal HUD Telegram Notifier, Error Log Attacher & GoFile Uploader
 # ==============================================================================
 
 # --- Load Private Telegram Secrets from Secret Gist if not in env ---
@@ -14,6 +14,7 @@ fi
 START_TIME=$(date +%s)
 DEVICE="LH8n"
 BRANCH="lineage-23.2-test"
+LOG_FILE="build_execution.log"
 
 # --- Telegram Notification Helper ---
 tg_send_message() {
@@ -24,6 +25,19 @@ tg_send_message() {
             -d parse_mode="HTML" \
             -d disable_web_page_preview="true" \
             --data-urlencode "text=${text}" >/dev/null 2>&1 || true
+    fi
+}
+
+# --- Telegram Document Upload Helper ---
+tg_send_document() {
+    local doc_path="$1"
+    local caption="$2"
+    if [[ -n "${TG_TOKEN}" && -n "${TG_CHAT_ID}" && -f "${doc_path}" ]]; then
+        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
+            -F chat_id="${TG_CHAT_ID}" \
+            -F document=@"${doc_path}" \
+            -F parse_mode="HTML" \
+            -F caption="${caption}" >/dev/null 2>&1 || true
     fi
 }
 
@@ -55,7 +69,7 @@ upload_to_gofile() {
     fi
 }
 
-# --- Error Handler ---
+# --- Error Handler (Auto-sends Failure Reason + Error Log Document) ---
 on_failure() {
     local exit_code=$?
     local failed_line=$1
@@ -63,6 +77,20 @@ on_failure() {
     end_time=$(date +%s)
     local duration=$(( (end_time - START_TIME) / 60 ))
     local duration_secs=$(( (end_time - START_TIME) % 60 ))
+
+    local log_snippet="No detailed error log available."
+    local err_file=""
+
+    if [[ -f "out/error.log" ]]; then
+        err_file="out/error.log"
+    elif [[ -f "${LOG_FILE}" ]]; then
+        err_file="${LOG_FILE}"
+    fi
+
+    if [[ -n "${err_file}" && -f "${err_file}" ]]; then
+        # Strip ANSI colors and escape HTML entities, capture last 12 lines
+        log_snippet=$(tail -n 12 "${err_file}" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+    fi
 
     local fail_msg="<pre>
 ┌──[ ❌ CI BUILD // FAILED ]
@@ -73,11 +101,20 @@ on_failure() {
 ├─► EXIT CODE: ${exit_code}
 ├─► TIME RUN : ${duration}m ${duration_secs}s
 │
-└──[ ⚠️ STATUS : COMPILATION ABORTED ]
+└──[ ⚠️ ERROR SNIPPET ]
+${log_snippet}
 </pre>
 👤 <b>Checked by:</b> @Swaggyxren"
 
     tg_send_message "${fail_msg}"
+
+    # Send full error log file as Telegram document attachment
+    if [[ -n "${err_file}" && -f "${err_file}" ]]; then
+        # Keep only the last 300 lines for the uploaded log document
+        tail -n 300 "${err_file}" > "error_${DEVICE}_${BRANCH}.txt" 2>/dev/null || true
+        tg_send_document "error_${DEVICE}_${BRANCH}.txt" "📄 <b>Full Error Log</b> (Last 300 lines) for <code>${DEVICE}</code> [${BRANCH}]"
+    fi
+
     echo "=== Build failed on line ${failed_line} with exit code ${exit_code} ==="
     exit "${exit_code}"
 }
@@ -108,7 +145,8 @@ rm -rf device/tecno/LH8n \
        device/mediatek/sepolicy_vndr \
        hardware/mediatek \
        vendor/sony/dolby \
-       vendor/lineage-priv/keys
+       vendor/lineage-priv/keys \
+       "${LOG_FILE}"
 
 echo "=== [2/6] Cloning Device, Vendor, Kernel & Dependencies ==="
 git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n
@@ -128,7 +166,7 @@ source build/envsetup.sh
 lunch lineage_LH8n-userdebug
 
 echo "=== [5/6] Compiling ROM ==="
-m bacon
+m bacon 2>&1 | tee "${LOG_FILE}"
 
 echo "=== [6/6] Packaging & Uploading Artifacts ==="
 END_TIME=$(date +%s)
