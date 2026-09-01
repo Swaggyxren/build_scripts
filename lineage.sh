@@ -208,7 +208,7 @@ lunch lineage_LH8n-userdebug
 echo "=== [4/5] Compiling ROM ==="
 m bacon 2>&1 | tee "${LOG_FILE}"
 
-echo "=== [6/6] Packaging & Dual Cloud Upload (PixelDrain + GoFile) ==="
+echo "=== [5/5] Packaging & Dual Cloud Upload (PixelDrain + GoFile) ==="
 END_TIME=$(date +%s)
 DURATION=$(( (END_TIME - START_TIME) / 60 ))
 DURATION_SECS=$(( (END_TIME - START_TIME) % 60 ))

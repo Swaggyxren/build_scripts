@@ -215,10 +215,10 @@ done
 source build/envsetup.sh
 lunch yaap_LH8n-userdebug || lunch yaap_LH8n-cp2a-user || lunch yaap_LH8n-ap2a-userdebug
 
-echo "=== [5/6] Compiling YAAP 17 ==="
+echo "=== [4/5] Compiling YAAP 17 ==="
 m yaap 2>&1 | tee "${LOG_FILE}"
 
-echo "=== [6/6] Packaging & Dual Cloud Upload (PixelDrain + GoFile) ==="
+echo "=== [5/5] Packaging & Dual Cloud Upload (PixelDrain + GoFile) ==="
 END_TIME=$(date +%s)
 DURATION=$(( (END_TIME - START_TIME) / 60 ))
 DURATION_SECS=$(( (END_TIME - START_TIME) % 60 ))
