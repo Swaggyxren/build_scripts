@@ -233,20 +233,17 @@ if [[ -f "${ROM_ZIP}" ]]; then
     GF_ROM_URL=$(upload_to_gofile "${ROM_ZIP}")
 fi
 
-# Partition Images Upload
+# Partition Images Upload (Boot, Vendor_boot, Recovery)
 BOOT_IMG="${OUT_DIR}/boot.img"
 VBOOT_IMG="${OUT_DIR}/vendor_boot.img"
-DTBO_IMG="${OUT_DIR}/dtbo.img"
 RECOVERY_IMG="${OUT_DIR}/recovery.img"
 
 PD_BOOT_URL=""
 PD_VBOOT_URL=""
-PD_DTBO_URL=""
 PD_RECOVERY_URL=""
 
 [[ -f "${BOOT_IMG}" ]] && PD_BOOT_URL=$(upload_to_pixeldrain "${BOOT_IMG}")
 [[ -f "${VBOOT_IMG}" ]] && PD_VBOOT_URL=$(upload_to_pixeldrain "${VBOOT_IMG}")
-[[ -f "${DTBO_IMG}" ]] && PD_DTBO_URL=$(upload_to_pixeldrain "${DTBO_IMG}")
 [[ -f "${RECOVERY_IMG}" ]] && PD_RECOVERY_URL=$(upload_to_pixeldrain "${RECOVERY_IMG}")
 
 # Construct Dual Provider Buttons
@@ -266,7 +263,6 @@ fi
 IMG_BUTTONS=()
 [[ -n "${PD_BOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Boot.img\",\"url\":\"${PD_BOOT_URL}\"}")
 [[ -n "${PD_VBOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Vendor_boot.img\",\"url\":\"${PD_VBOOT_URL}\"}")
-[[ -n "${PD_DTBO_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Dtbo.img\",\"url\":\"${PD_DTBO_URL}\"}")
 [[ -n "${PD_RECOVERY_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Recovery.img\",\"url\":\"${PD_RECOVERY_URL}\"}")
 
 if [[ ${#IMG_BUTTONS[@]} -gt 0 ]]; then
