@@ -183,7 +183,7 @@ tg_send_message "${start_msg}"
 echo "=== [1/5] Resyncing Base Sources ==="
 /opt/crave/resync.sh
 
-echo "=== [2/5] Cleaning and Cloning Custom Repositories ==="
+echo "=== [2/5] Cleaning and Cloning Custom Repositories & A17 Soong Patch ==="
 rm -rf device/tecno/LH8n \
        vendor/tecno/LH8n \
        device/tecno/LH8n-kernel \
@@ -192,8 +192,11 @@ rm -rf device/tecno/LH8n \
        hardware/mediatek \
        vendor/sony/dolby \
        vendor/lineage-priv/keys \
+       build/soong \
        "${LOG_FILE}"
 
+# Apply Mayuresh's A17 Soong Memory Limit & Aggressive GC Patch
+git clone https://github.com/yaap-17-stone/build_soong.git --depth 1 -b seventeen build/soong
 git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b yaap-17 device/tecno/LH8n
 git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b yaap-17 vendor/tecno/LH8n
 git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
