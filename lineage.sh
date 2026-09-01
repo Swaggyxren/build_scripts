@@ -16,7 +16,7 @@ rm -rf device/tecno/LH8n \
        vendor/lineage-priv/keys
 
 echo "=== [2/5] Cloning Device, Vendor, Kernel & Dependencies ==="
-git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b los-test device/tecno/LH8n
+git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b lineage-23.2-test device/tecno/LH8n
 git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b vendor-test vendor/tecno/LH8n
 git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
 git clone https://github.com/techyminati/android_vendor_mediatek_ims --depth 1 vendor/mediatek/ims
