@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ==============================================================================
 #  Build Script for Tecno Pova 5 Pro 5G (LH8n)
-#  Features: Terminal HUD Notifier (No Emojis), Error Attacher & Multi-Artifact Uploader
+#  Features: Terminal HUD Notifier (No Emojis), Error Attacher & PixelDrain Uploader
 # ==============================================================================
 
 # --- Load Private Telegram Secrets from Secret Gist if not in env ---
@@ -65,13 +65,10 @@ upload_to_gofile() {
 
     local server
     server=$(curl -ks "https://api.gofile.io/servers" | jq -r '.data.servers[0].name' 2>/dev/null || echo "")
-
-    if [[ -z "${server}" || "${server}" == "null" ]]; then
-        server="store1"
-    fi
+    [[ -z "${server}" || "${server}" == "null" ]] && server="store1"
 
     local response
-    response=$(curl -k -# -F "file=@${file_path}" "https://${server}.gofile.io/contents/uploadfile")
+    response=$(curl -k -# -F "file=@${file_path}" "https://${server}.gofile.io/contents/uploadfile" 2>/dev/null || echo "")
     local download_url
     download_url=$(echo "${response}" | jq -r '.data.downloadPage' 2>/dev/null || echo "")
 
@@ -82,7 +79,37 @@ upload_to_gofile() {
     fi
 }
 
-# --- Error Handler (Auto-sends Failure Reason + Error Log Document) ---
+# --- PixelDrain Upload Helper (with GoFile Fallback) ---
+upload_file() {
+    local file_path="$1"
+    if [[ ! -f "${file_path}" ]]; then
+        echo ""
+        return 1
+    fi
+
+    local file_name
+    file_name=$(basename "${file_path}")
+    echo "=== Uploading ${file_name} to PixelDrain ===" >&2
+
+    local response
+    if [[ -n "${PIXELDRAIN_KEY}" ]]; then
+        response=$(curl -s -T "${file_path}" -u :${PIXELDRAIN_KEY} https://pixeldrain.com/api/file/ 2>/dev/null || echo "")
+    else
+        response=$(curl -s -T "${file_path}" https://pixeldrain.com/api/file/ 2>/dev/null || echo "")
+    fi
+
+    local id
+    id=$(echo "${response}" | jq -r '.id' 2>/dev/null || echo "")
+
+    if [[ -n "${id}" && "${id}" != "null" ]]; then
+        echo "https://pixeldrain.com/u/${id}"
+    else
+        echo "=== PixelDrain fallback to GoFile for ${file_name} ===" >&2
+        upload_to_gofile "${file_path}"
+    fi
+}
+
+# --- Error Handler ---
 on_failure() {
     local exit_code=$?
     local failed_line=$1
@@ -101,7 +128,6 @@ on_failure() {
     fi
 
     if [[ -n "${err_file}" && -f "${err_file}" ]]; then
-        # Strip ANSI colors and escape HTML entities, capture last 12 lines
         log_snippet=$(tail -n 12 "${err_file}" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
     fi
 
@@ -121,7 +147,6 @@ ${log_snippet}
 
     tg_send_message "${fail_msg}"
 
-    # Send full error log file as Telegram document attachment
     if [[ -n "${err_file}" && -f "${err_file}" ]]; then
         tail -n 300 "${err_file}" > "error_${DEVICE}_${BRANCH}.txt" 2>/dev/null || true
         tg_send_document "error_${DEVICE}_${BRANCH}.txt" "<b>Full Error Log</b> (Last 300 lines) for <code>${DEVICE}</code> [${BRANCH}]"
@@ -177,70 +202,51 @@ echo "=== [4/6] Setting Up Build Environment ==="
 source build/envsetup.sh
 lunch lineage_LH8n-userdebug
 
-echo "=== [5/6] Compiling ROM (GApps / Default Edition) ==="
-m installclean
+echo "=== [5/6] Compiling ROM ==="
 m bacon 2>&1 | tee "${LOG_FILE}"
 
-# Save Edition 1 Outputs
-mkdir -p out_artifacts/gapps out_artifacts/images
-find "out/target/product/${DEVICE}" -maxdepth 1 -name "*.zip" ! -name "*ota*" -exec cp {} out_artifacts/gapps/ \;
-cp "out/target/product/${DEVICE}/boot.img" out_artifacts/images/ 2>/dev/null || true
-cp "out/target/product/${DEVICE}/vendor_boot.img" out_artifacts/images/ 2>/dev/null || true
-cp "out/target/product/${DEVICE}/dtbo.img" out_artifacts/images/ 2>/dev/null || true
-
-# --- Optional Fast Incremental Vanilla Build ---
-if [[ "${BUILD_VANILLA}" == "true" ]]; then
-    echo "=== Compiling Vanilla Edition (Fast Incremental) ==="
-    export WITH_GMS=false
-    export TARGET_SUPPORTS_GAPPS=false
-    source build/envsetup.sh
-    lunch lineage_LH8n-userdebug
-    m installclean
-    m bacon 2>&1 | tee -a "${LOG_FILE}"
-
-    mkdir -p out_artifacts/vanilla
-    find "out/target/product/${DEVICE}" -maxdepth 1 -name "*.zip" ! -name "*ota*" -exec cp {} out_artifacts/vanilla/ \;
-fi
-
-echo "=== [6/6] Packaging & Uploading Artifacts to GoFile ==="
+echo "=== [6/6] Packaging & Uploading Artifacts to PixelDrain ==="
 END_TIME=$(date +%s)
 DURATION=$(( (END_TIME - START_TIME) / 60 ))
 DURATION_SECS=$(( (END_TIME - START_TIME) % 60 ))
 
-# Detect & Upload ROM Zip
-ROM_ZIP=$(find out_artifacts/ -name "*.zip" | head -n 1)
-ROM_URL=""
+OUT_DIR="out/target/product/${DEVICE}"
+ROM_ZIP=$(find "${OUT_DIR}" -maxdepth 1 -name "*.zip" ! -name "*ota*" | head -n 1)
+
 ZIP_NAME="None"
 ZIP_SIZE="0"
 ZIP_MD5="None"
+ROM_URL=""
 
 if [[ -f "${ROM_ZIP}" ]]; then
     ZIP_NAME=$(basename "${ROM_ZIP}")
     ZIP_SIZE=$(du -h "${ROM_ZIP}" | awk '{print $1}')
     ZIP_MD5=$(md5sum "${ROM_ZIP}" | awk '{print $1}')
-    echo "Uploading ${ZIP_NAME} (${ZIP_SIZE})..."
-    ROM_URL=$(upload_to_gofile "${ROM_ZIP}")
+    ROM_URL=$(upload_file "${ROM_ZIP}")
 fi
 
-# Upload Images (boot, vendor_boot, dtbo)
-BOOT_IMG="out_artifacts/images/boot.img"
-VBOOT_IMG="out_artifacts/images/vendor_boot.img"
-DTBO_IMG="out_artifacts/images/dtbo.img"
+# 1. Upload Individual Partition Images (Boot, Vendor_boot, Dtbo, Recovery)
+BOOT_IMG="${OUT_DIR}/boot.img"
+VBOOT_IMG="${OUT_DIR}/vendor_boot.img"
+DTBO_IMG="${OUT_DIR}/dtbo.img"
+RECOVERY_IMG="${OUT_DIR}/recovery.img"
 
 BOOT_URL=""
 VBOOT_URL=""
 DTBO_URL=""
+RECOVERY_URL=""
 
-[[ -f "${BOOT_IMG}" ]] && BOOT_URL=$(upload_to_gofile "${BOOT_IMG}")
-[[ -f "${VBOOT_IMG}" ]] && VBOOT_URL=$(upload_to_gofile "${VBOOT_IMG}")
-[[ -f "${DTBO_IMG}" ]] && DTBO_URL=$(upload_to_gofile "${DTBO_IMG}")
+[[ -f "${BOOT_IMG}" ]] && BOOT_URL=$(upload_file "${BOOT_IMG}")
+[[ -f "${VBOOT_IMG}" ]] && VBOOT_URL=$(upload_file "${VBOOT_IMG}")
+[[ -f "${DTBO_IMG}" ]] && DTBO_URL=$(upload_file "${DTBO_IMG}")
+[[ -f "${RECOVERY_IMG}" ]] && RECOVERY_URL=$(upload_file "${RECOVERY_IMG}")
 
-# Construct Clean JSON Buttons (No Emojis)
+# Construct Clean JSON Inline Buttons
 BUTTON_ROWS=()
 
-# Row 1: ROM Download Button
+# Row 1: Main ROM Download Button
 if [[ -n "${ROM_URL}" ]]; then
-    BUTTON_ROWS+=("[{\"text\":\"Download ROM (GoFile)\",\"url\":\"${ROM_URL}\"}]")
+    BUTTON_ROWS+=("[{\"text\":\"Download ROM\",\"url\":\"${ROM_URL}\"}]")
 fi
 
 # Row 2: Partition Image Buttons
@@ -248,6 +254,7 @@ IMG_BUTTONS=()
 [[ -n "${BOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Boot.img\",\"url\":\"${BOOT_URL}\"}")
 [[ -n "${VBOOT_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Vendor_boot.img\",\"url\":\"${VBOOT_URL}\"}")
 [[ -n "${DTBO_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Dtbo.img\",\"url\":\"${DTBO_URL}\"}")
+[[ -n "${RECOVERY_URL}" ]] && IMG_BUTTONS+=("{\"text\":\"Recovery.img\",\"url\":\"${RECOVERY_URL}\"}")
 
 if [[ ${#IMG_BUTTONS[@]} -gt 0 ]]; then
     ROW2=$(IFS=,; echo "${IMG_BUTTONS[*]}")
