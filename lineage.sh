@@ -23,7 +23,7 @@ tg_send_message() {
             -d chat_id="${TG_CHAT_ID}" \
             -d parse_mode="HTML" \
             -d disable_web_page_preview="true" \
-            -d text="${text}" >/dev/null 2>&1 || true
+            --data-urlencode "text=${text}" >/dev/null 2>&1 || true
     fi
 }
 
