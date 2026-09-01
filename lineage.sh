@@ -160,7 +160,7 @@ if [[ -f "${ZIP_PATH}" ]]; then
 │
 └──[ 🔗 LINK : ${GOFILE_URL} ]
 </pre>
-👤 <b>Built by:</b> @Swaggyxren | #${DEVICE}"
+👤 <b>Built by:</b> @Swaggyxren"
 
     tg_send_message "${success_msg}"
 else
