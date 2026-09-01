@@ -28,6 +28,24 @@ tg_send_message() {
     fi
 }
 
+# --- Telegram Notification with Inline URL Button ---
+tg_send_message_with_button() {
+    local text="$1"
+    local button_text="$2"
+    local button_url="$3"
+    if [[ -n "${TG_TOKEN}" && -n "${TG_CHAT_ID}" ]]; then
+        local keyboard_json
+        keyboard_json=$(printf '{"inline_keyboard":[[{"text":"%s","url":"%s"}]]}' "${button_text}" "${button_url}")
+
+        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="HTML" \
+            -d disable_web_page_preview="true" \
+            --data-urlencode "text=${text}" \
+            --data-urlencode "reply_markup=${keyboard_json}" >/dev/null 2>&1 || true
+    fi
+}
+
 # --- Telegram Document Upload Helper ---
 tg_send_document() {
     local doc_path="$1"
@@ -196,11 +214,15 @@ if [[ -f "${ZIP_PATH}" ]]; then
 ├─► TIME     : ${DURATION}m ${DURATION_SECS}s
 ├─► MD5      : ${ZIP_MD5}
 │
-└──[ 🔗 LINK : ${GOFILE_URL} ]
+└──[ 📦 STATUS : READY TO FLASH ]
 </pre>
 👤 <b>Built by:</b> @Swaggyxren"
 
-    tg_send_message "${success_msg}"
+    if [[ -n "${GOFILE_URL}" && "${GOFILE_URL}" != "ERROR" ]]; then
+        tg_send_message_with_button "${success_msg}" "🚀 Download ROM (GoFile)" "${GOFILE_URL}"
+    else
+        tg_send_message "${success_msg}"
+    fi
 else
     no_zip_msg="<pre>
 ┌──[ ⚠️ BUILD FINISHED // NO ZIP DETECTED ]
