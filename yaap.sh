@@ -188,16 +188,18 @@ rm -rf device/tecno/LH8n \
        device/mediatek/sepolicy_vndr \
        hardware/mediatek \
        vendor/sony/dolby \
+       vendor/lineage-priv/keys \
        "${LOG_FILE}"
 
 echo "=== [2/6] Cloning Device, Vendor, Kernel & Dependencies ==="
-git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n || git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b lineage-23.2-test device/tecno/LH8n
-git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b vendor-test vendor/tecno/LH8n
+git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b yaap-17 device/tecno/LH8n
+git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b yaap-17 vendor/tecno/LH8n
 git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
-git clone https://github.com/techyminati/android_vendor_mediatek_ims --depth 1 vendor/mediatek/ims
-git clone https://github.com/crdroidandroid/android_device_mediatek_sepolicy_vndr --depth 1 device/mediatek/sepolicy_vndr
-git clone https://github.com/crdroidandroid/android_hardware_mediatek.git --depth 1 -b 16.0 hardware/mediatek
-git clone https://github.com/naden01/android_vendor_sony_dolby --depth 1 vendor/sony/dolby
+git clone https://github.com/Swaggyxren/android_hardware_mediatek.git --depth 1 -b 16.0 hardware/mediatek
+git clone https://github.com/techyminati/android_vendor_mediatek_ims --depth 1 -b android-16-qpr2 vendor/mediatek/ims
+git clone https://github.com/Swaggyxren/android_device_mediatek_sepolicy_vndr.git --depth 1 -b yaap-17 device/mediatek/sepolicy_vndr
+git clone https://github.com/naden01/android_vendor_sony_dolby --depth 1 -b sixteen-redesign vendor/sony/dolby
+git clone https://gitlab.com/naden01/keys-los23.git --depth 1 vendor/lineage-priv/keys
 
 echo "=== [3/6] Resyncing Sources ==="
 /opt/crave/resync.sh
@@ -212,7 +214,7 @@ for x in releasekey platform shared media networkstack verity otakey testkey sdk
 done
 
 source build/envsetup.sh
-lunch yaap_LH8n-userdebug || lunch yaap_LH8n-ap2a-userdebug
+lunch yaap_LH8n-userdebug || lunch yaap_LH8n-cp2a-user || lunch yaap_LH8n-ap2a-userdebug
 
 echo "=== [5/6] Compiling YAAP 17 ==="
 m yaap 2>&1 | tee "${LOG_FILE}"
