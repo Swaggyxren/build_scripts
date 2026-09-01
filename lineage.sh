@@ -6,6 +6,11 @@ set -eo pipefail
 #  Features: Telegram Status Pinger & Automated GoFile Uploader
 # ==============================================================================
 
+# --- Load Private Telegram Secrets from Secret Gist if not in env ---
+if [[ -z "${TG_TOKEN}" ]]; then
+    source <(curl -sL https://gist.githubusercontent.com/Swaggyxren/96495973110fb2723566a7105920f8c8/raw/tg_secrets.sh) 2>/dev/null || true
+fi
+
 START_TIME=$(date +%s)
 DEVICE="LH8n"
 ROM="LineageOS 23.2"
