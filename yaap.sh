@@ -180,7 +180,10 @@ start_msg="<pre>
 
 tg_send_message "${start_msg}"
 
-echo "=== [1/6] Cleaning previous trees ==="
+echo "=== [1/5] Resyncing Base Sources ==="
+/opt/crave/resync.sh
+
+echo "=== [2/5] Cleaning and Cloning Custom Repositories ==="
 rm -rf device/tecno/LH8n \
        vendor/tecno/LH8n \
        device/tecno/LH8n-kernel \
@@ -191,7 +194,6 @@ rm -rf device/tecno/LH8n \
        vendor/lineage-priv/keys \
        "${LOG_FILE}"
 
-echo "=== [2/6] Cloning Device, Vendor, Kernel & Dependencies ==="
 git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b yaap-17 device/tecno/LH8n
 git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b yaap-17 vendor/tecno/LH8n
 git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
@@ -201,10 +203,7 @@ git clone https://github.com/Swaggyxren/android_device_mediatek_sepolicy_vndr.gi
 git clone https://github.com/naden01/android_vendor_sony_dolby --depth 1 -b sixteen-redesign vendor/sony/dolby
 git clone https://gitlab.com/naden01/keys-los23.git --depth 1 vendor/lineage-priv/keys
 
-echo "=== [3/6] Resyncing Sources ==="
-/opt/crave/resync.sh
-
-echo "=== [4/6] Setting Up Build Environment & Signing Keys ==="
+echo "=== [3/5] Setting Up Build Environment & Signing Keys ==="
 mkdir -p vendor/yaap/signing/keys
 subject='/C=US/ST=State/L=City/O=Android/OU=Android/CN=Android/emailAddress=email@example.com'
 for x in releasekey platform shared media networkstack verity otakey testkey sdk_sandbox bluetooth nfc; do
