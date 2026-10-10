@@ -210,8 +210,8 @@ tg_send_message "${start_msg}"
     rm -f out/target/product/${DEVICE}/*.zip 2>/dev/null || true
 
     git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n
-    git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b ${BRANCH} vendor/tecno/LH8n
-    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n-kernel
+    git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b lineage-23.2 vendor/tecno/LH8n
+    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
     git clone https://github.com/MillenniumOSS/android_vendor_mediatek_ims.git --depth 1 -b sixteen-oem vendor/mediatek/ims
     git clone https://github.com/crdroidandroid/android_device_mediatek_sepolicy_vndr --depth 1 device/mediatek/sepolicy_vndr
     git clone https://github.com/crdroidandroid/android_hardware_mediatek.git --depth 1 -b 16.0 hardware/mediatek
@@ -220,6 +220,14 @@ tg_send_message "${start_msg}"
 
     # Fix PowerOffAlarm bionic sched_param redefinition
     sed -i '/"generated_kernel_headers",/d' hardware/mediatek/packages/PowerOffAlarm/Android.bp 2>/dev/null || true
+
+    # Fix PATH tool restrictions for date and tar in Soong, and patch gen_build_prop
+    git -C build/soong checkout ui/build/paths/config.go scripts/gen_build_prop.py 2>/dev/null || true
+    rm -rf out/.soong_ui_intermediates 2>/dev/null || true
+    grep -q '"date":' build/soong/ui/build/paths/config.go || sed -i 's/"bash":        Allowed,/"bash":        Allowed,\n\t"date":        Allowed,\n\t"tar":         Allowed,/g' build/soong/ui/build/paths/config.go 2>/dev/null || true
+    sed -i 's/import argparse/import argparse, time/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
+    sed -i 's/subprocess\.check_output(\["date", "-d", f"@{raw_date}"\], text=True)\.strip()/time.ctime(int(raw_date))/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
+    sed -i 's/subprocess\.check_output(\["date", "-d", f"@{raw_date}", "+%s"\], text=True)\.strip()/raw_date/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
 
     # Restore clean build/make envsetup.sh if modified, and silence ccache warning cleanly
     git -C build/make checkout envsetup.sh 2>/dev/null || true

@@ -214,7 +214,7 @@ tg_send_message "${start_msg}"
 
     git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n
     git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b lineage-23.2 vendor/tecno/LH8n
-    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n-kernel 2>/dev/null || git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b lunaris-16 device/tecno/LH8n-kernel
+    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b test device/tecno/LH8n-kernel
     git clone https://github.com/MillenniumOSS/android_vendor_mediatek_ims.git --depth 1 -b sixteen-oem vendor/mediatek/ims
     git clone https://github.com/crdroidandroid/android_device_mediatek_sepolicy_vndr --depth 1 device/mediatek/sepolicy_vndr
     git clone https://github.com/crdroidandroid/android_hardware_mediatek.git --depth 1 -b 16.0 hardware/mediatek
@@ -227,8 +227,19 @@ tg_send_message "${start_msg}"
     git -C build/make checkout envsetup.sh 2>/dev/null || true
     sed -i 's/echo "Error: ccache not found.*"/true/' build/make/envsetup.sh 2>/dev/null || true
     sed -i '/ccache/d' device/tecno/LH8n/vendorsetup.sh 2>/dev/null || true
+    # Fix make_key exit trap that exits with 1 on normal completion
+    sed -i "s/trap 'rm -rf \${tmpdir}; echo; exit 1' EXIT INT QUIT/trap 'rm -rf \${tmpdir}' EXIT/g" development/tools/make_key 2>/dev/null || true
+
     export USE_CCACHE=0
     unset CCACHE_EXEC
+
+    # Fix PATH tool restrictions for date and tar in Soong, and patch gen_build_prop
+    git -C build/soong checkout ui/build/paths/config.go scripts/gen_build_prop.py 2>/dev/null || true
+    rm -rf out/.soong_ui_intermediates 2>/dev/null || true
+    grep -q '"date":' build/soong/ui/build/paths/config.go || sed -i 's/"bash":        Allowed,/"bash":        Allowed,\n\t"date":        Allowed,\n\t"tar":         Allowed,/g' build/soong/ui/build/paths/config.go 2>/dev/null || true
+    sed -i 's/import argparse/import argparse, time/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
+    sed -i 's/subprocess\.check_output(\["date", "-d", f"@{raw_date}"\], text=True)\.strip()/time.ctime(int(raw_date))/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
+    sed -i 's/subprocess\.check_output(\["date", "-d", f"@{raw_date}", "+%s"\], text=True)\.strip()/raw_date/g' build/soong/scripts/gen_build_prop.py 2>/dev/null || true
 
     export ANDROID_BUILD_TOP="$(pwd)"
     export ANDROID_KEY_PATH="${ANDROID_BUILD_TOP}/vendor/lineage-priv/keys"
