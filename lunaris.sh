@@ -15,7 +15,7 @@ fi
 
 START_TIME=$(date +%s)
 DEVICE="LH8n"
-BRANCH="lunaris"
+BRANCH="lunaris-16"
 LOG_FILE="lunaris_build.log"
 
 echo "=== Telegram Config: Token=${TG_TOKEN:0:10}... ChatID=${TG_CHAT_ID} ==="

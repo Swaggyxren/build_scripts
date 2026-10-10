@@ -214,7 +214,7 @@ tg_send_message "${start_msg}"
 
     git clone https://github.com/Swaggyxren/android_device_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n
     git clone https://github.com/Swaggyxren/vendor_tecno_LH8n.git --depth 1 -b lineage-23.2 vendor/tecno/LH8n
-    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n-kernel 2>/dev/null || git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b lunaris device/tecno/LH8n-kernel
+    git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b ${BRANCH} device/tecno/LH8n-kernel 2>/dev/null || git clone https://github.com/Swaggyxren/android_kernel_tecno_LH8n.git --depth 1 -b lunaris-16 device/tecno/LH8n-kernel
     git clone https://github.com/MillenniumOSS/android_vendor_mediatek_ims.git --depth 1 -b sixteen-oem vendor/mediatek/ims
     git clone https://github.com/crdroidandroid/android_device_mediatek_sepolicy_vndr --depth 1 device/mediatek/sepolicy_vndr
     git clone https://github.com/crdroidandroid/android_hardware_mediatek.git --depth 1 -b 16.0 hardware/mediatek
